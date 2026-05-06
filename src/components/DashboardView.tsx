@@ -159,6 +159,7 @@ export function DashboardView() {
   ];
 
 
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -310,9 +311,27 @@ export function DashboardView() {
           <div className="flex-1 flex flex-col justify-center items-center">
             <div className="relative w-48 h-48 rounded-full border-[16px] border-slate-50 flex items-center justify-center">
               <svg className="absolute inset-0 w-full h-full -rotate-90">
-                <circle cx="96" cy="96" r="80" fill="none" stroke="#1B2B48" strokeWidth="16" strokeDasharray="502" strokeDashoffset="400" />
-                <circle cx="96" cy="96" r="80" fill="none" stroke="#3D5A91" strokeWidth="16" strokeDasharray="502" strokeDashoffset="450" transform="rotate(45, 96, 96)" />
-                <circle cx="96" cy="96" r="80" fill="none" stroke="#5F7DBB" strokeWidth="16" strokeDasharray="502" strokeDashoffset="480" transform="rotate(110, 96, 96)" />
+                {/* Circumference is approx 502 (2 * PI * 80) */}
+                <circle 
+                  cx="96" cy="96" r="80" fill="none" stroke="#1B2B48" strokeWidth="16" 
+                  strokeDasharray="502" 
+                  strokeDashoffset={502 - (502 * (stats.hierarchy[0]?.perc || 0) / 100)} 
+                  className="transition-all duration-1000"
+                />
+                <circle 
+                  cx="96" cy="96" r="80" fill="none" stroke="#3D5A91" strokeWidth="16" 
+                  strokeDasharray="502" 
+                  strokeDashoffset={502 - (502 * (stats.hierarchy[1]?.perc || 0) / 100)} 
+                  transform={`rotate(${(stats.hierarchy[0]?.perc || 0) * 3.6}, 96, 96)`}
+                  className="transition-all duration-1000"
+                />
+                <circle 
+                  cx="96" cy="96" r="80" fill="none" stroke="#5F7DBB" strokeWidth="16" 
+                  strokeDasharray="502" 
+                  strokeDashoffset={502 - (502 * (stats.hierarchy[2]?.perc || 0) / 100)} 
+                  transform={`rotate(${((stats.hierarchy[0]?.perc || 0) + (stats.hierarchy[1]?.perc || 0)) * 3.6}, 96, 96)`}
+                  className="transition-all duration-1000"
+                />
               </svg>
               <div className="text-center bg-white rounded-full w-32 h-32 flex flex-col items-center justify-center shadow-inner z-10">
                 <span className="block text-3xl font-bold text-[#1B2B48] tracking-tight">{stats.totalLeads > 0 ? '100%' : '0%'}</span>
