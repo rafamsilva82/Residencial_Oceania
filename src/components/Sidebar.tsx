@@ -1,4 +1,4 @@
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Building2,

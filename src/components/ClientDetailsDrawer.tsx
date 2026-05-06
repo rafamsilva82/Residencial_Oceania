@@ -2,7 +2,7 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, User, Phone, Mail, Building, FileText, Calendar, CreditCard, Shield, Briefcase, Award } from "lucide-react";
 import { InterestedParty } from "../types";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface ClientDetailsDrawerProps {
     isOpen: boolean;

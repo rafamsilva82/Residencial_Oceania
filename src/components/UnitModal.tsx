@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronRight, Plus, X, Trash2, ZoomIn } from "lucide-react";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { IMAGES } from "../constants";
 import { Unit, InterestedParty } from "../types";
 import { supabase } from "../lib/supabase";
@@ -32,20 +32,14 @@ export function UnitModal({ unit, onClose }: UnitModalProps) {
       setLoadingPlan(true);
       const columnNumber = parseInt(unit.column.replace(/\D/g, ''), 10);
 
-      const PLAN_URLS: Record<number, string> = {
-        1: '/coluna1.png',
-        2: '/coluna2.png',
-        3: '/coluna3.png',
-        4: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_5.png',
-        5: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_4.png',
-        6: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_6.png',
-        7: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_9.png',
-        8: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_8.png',
-        9: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_7.png',
-        10: 'https://rlccegzjbicpendzeckb.supabase.co/storage/v1/object/public/plans/planta_coluna_10.png',
-      };
+      const { data, error } = await supabase
+        .from('humanized_plans')
+        .select('image_url')
+        .eq('column_number', columnNumber)
+        .single();
 
-      setHumanizedPlan(PLAN_URLS[columnNumber] || null);
+      if (error) throw error;
+      setHumanizedPlan(data?.image_url || null);
     } catch (err) {
       console.error("Error loading humanized plan:", err);
       setHumanizedPlan(null);

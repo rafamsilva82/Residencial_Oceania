@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { InterestedParty } from "../types";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { ClientDetailsDrawer } from "./ClientDetailsDrawer";
 
@@ -130,13 +130,31 @@ export function ClientsView({ onAddClient }: ClientsViewProps) {
         );
     }
 
+    const [stats, setStats] = useState({
+        awaitingVisit: 0,
+        withAnalysis: 0
+    });
+
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    async function fetchStats() {
+        const { count: awaiting } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('situacao_lead', 'Cadastro Realizado');
+        const { count: withAnalysis } = await supabase.from('leads').select('*', { count: 'exact', head: true }).not('analise_documental', 'is', null);
+        setStats({
+            awaitingVisit: awaiting || 0,
+            withAnalysis: withAnalysis || 0
+        });
+    }
+
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                     { label: "Total de Leads", val: totalCount, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-                    { label: "Aguardando Visita", val: clients.filter(c => c.situacao_lead === "Cadastro Realizado").length, icon: Calendar, color: "text-amber-600", bg: "bg-amber-50" },
-                    { label: "Com Análise", val: clients.filter(c => c.analise_documental).length, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+                    { label: "Aguardando Visita", val: stats.awaitingVisit, icon: Calendar, color: "text-amber-600", bg: "bg-amber-50" },
+                    { label: "Com Análise", val: stats.withAnalysis, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
                         <div className={cn("p-4 rounded-2xl", stat.bg)}><stat.icon className={stat.color} size={24} /></div>

@@ -6,7 +6,7 @@ import {
   AlertTriangle,
   BarChart3
 } from "lucide-react";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function ReportsView() {
   return (

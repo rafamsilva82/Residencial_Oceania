@@ -15,7 +15,7 @@ import {
   Eye,
   ChevronDown
 } from "lucide-react";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { supabase } from "../lib/supabase";
 import { Unit } from "../types";
 
@@ -58,28 +58,33 @@ export function UnitsView({ onSelectUnit }: UnitsViewProps) {
   async function fetchUnits() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data: unitsData, error: unitsErr } = await supabase
         .from('units')
         .select('*')
         .order('id', { ascending: true });
 
-      if (error) throw error;
+      if (unitsErr) throw unitsErr;
 
-      if (data) {
-        setUnits(data);
-        const total = data.length;
-        const available = data.filter(u => u.status === 'Livre').length;
-        const totalValue = data.reduce((acc, u) => acc + Number(u.value), 0);
+      // Fetch waiting list count (leads with an active Opção 2)
+      const { count: waitingCount } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .not('opcao_2', 'is', null);
+
+      if (unitsData) {
+        setUnits(unitsData);
+        const total = unitsData.length;
+        const available = unitsData.filter(u => u.status === 'Livre').length;
+        const totalValue = unitsData.reduce((acc, u) => acc + Number(u.value), 0);
 
         setCounts({
           total,
           available,
-          waitingList: 0, // Placeholder
+          waitingList: waitingCount || 0,
           totalValue
         });
 
-        // Auto-expand all floors on first load
-        const floors = new Set(data.map((u: any) => Number(u.floor)));
+        const floors = new Set(unitsData.map((u: any) => Number(u.floor)));
         setExpandedFloors(floors);
       }
     } catch (err) {

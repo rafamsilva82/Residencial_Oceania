@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { X, User, Building, Shield, CreditCard, ChevronRight, Loader2, AlertCircle, Mail, Phone, Award, Briefcase, FileText, Calendar } from "lucide-react";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { supabase } from "../lib/supabase";
 import { Unit } from "../types";
 import toast from "react-hot-toast";

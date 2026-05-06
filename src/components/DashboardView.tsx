@@ -17,7 +17,7 @@ import {
   Clock,
   Loader2
 } from "lucide-react";
-import { cn } from "@/Residencial_Oceania/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { IMAGES } from "../constants";
 import { supabase } from "../lib/supabase";
 
@@ -29,64 +29,120 @@ export function DashboardView() {
     qualifiedLeads: 0,
     totalVolume: 0,
     funnel: [
-      { label: "CADASTRO", val: 0, color: "bg-[#1B2B48]", width: "100%" },
-      { label: "CONTATO", val: 0, color: "bg-[#2A3F65]", width: "85%" },
-      { label: "VISITA", val: 0, color: "bg-[#3D5A91]", width: "60%" },
-      { label: "PROPOSTA", val: 0, color: "bg-[#5F7DBB]", width: "40%" },
-      { label: "FECHADO", val: 0, color: "bg-[#8BA3D5]", width: "15%" },
-    ]
+      { label: "CADASTRO", val: 0, color: "bg-[#1B2B48]" },
+      { label: "CONTATO", val: 0, color: "bg-[#2A3F65]" },
+      { label: "VISITA", val: 0, color: "bg-[#3D5A91]" },
+      { label: "PROPOSTA", val: 0, color: "bg-[#5F7DBB]" },
+      { label: "FECHADO", val: 0, color: "bg-[#8BA3D5]" },
+    ],
+    hierarchy: [
+      { label: "Oficiais Gen.", color: "bg-[#1B2B48]", val: 0, perc: 0 },
+      { label: "Oficiais Sup.", color: "bg-[#3D5A91]", val: 0, perc: 0 },
+      { label: "Oficiais Sub.", color: "bg-[#5F7DBB]", val: 0, perc: 0 },
+      { label: "Outros", color: "bg-slate-200", val: 0, perc: 0 },
+    ],
+    financial: {
+      under15: { total: 0, apto: 0, analise: 0 },
+      above15: { total: 0, apto: 0, analise: 0 }
+    }
   });
 
   useEffect(() => {
     fetchStats();
   }, []);
 
+  const parseCurrency = (val: string | null): number => {
+    if (!val) return 0;
+    const clean = val.replace(/[R$\s.]/g, '').replace(',', '.');
+    return parseFloat(clean) || 0;
+  };
+
   async function fetchStats() {
     try {
       setLoading(true);
 
-      // 1. Total Leads
-      const { count: totalLeads } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true });
+      const { data: leads, error: leadsErr } = await supabase.from('leads').select('*');
+      if (leadsErr) throw leadsErr;
 
-      // 2. Units Available
       const { count: availableUnits } = await supabase
         .from('units')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Livre');
 
-      // 3. Qualified Leads (has capacidade_financeira)
-      const { count: qualifiedLeads } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .not('capacidade_financeira', 'is', null);
+      const totalLeads = leads?.length || 0;
+      let totalVolume = 0;
+      let qualifiedLeadsCount = 0;
 
-      // 4. Volume placeholder
-      const totalVolume = 0;
-
-      // 5. Funnel Stages - using situacao_lead
-      const { data: stageData } = await supabase.from('leads').select('situacao_lead');
+      // Funnel counters
       const funnelCounts = {
-        'Cadastro Realizado': stageData?.filter(l => l.situacao_lead === 'Cadastro Realizado').length || 0,
-        'Contato Inicial': stageData?.filter(l => l.situacao_lead === 'Contato Inicial').length || 0,
-        'Visita Realizada': stageData?.filter(l => l.situacao_lead === 'Visita Realizada').length || 0,
-        'Proposta Enviada': stageData?.filter(l => l.situacao_lead === 'Proposta Enviada').length || 0,
-        'Venda Concluída': stageData?.filter(l => l.situacao_lead === 'Venda Concluída').length || 0,
+        cadastro: 0,
+        contato: 0,
+        visita: 0,
+        proposta: 0,
+        fechado: 0
       };
 
+      // Hierarchy counters
+      const hierarchyCounts = { gen: 0, sup: 0, sub: 0, others: 0 };
+
+      // Financial segments
+      const financial = {
+        under15: { total: 0, apto: 0, analise: 0 },
+        above15: { total: 0, apto: 0, analise: 0 }
+      };
+
+      leads?.forEach(lead => {
+        // Volume & Qualification
+        const val1 = parseCurrency(lead.capacidade_financeira_ate);
+        const val2 = parseCurrency(lead.capacidade_financeira);
+        const maxVal = Math.max(val1, val2);
+        totalVolume += maxVal;
+        if (maxVal > 0) qualifiedLeadsCount++;
+
+        // Funnel Mapping
+        const status = (lead.situacao_lead || '').toUpperCase();
+        funnelCounts.cadastro++; // Everyone is registered
+        if (status.includes('CONTATO') || status.includes('EMAIL')) funnelCounts.contato++;
+        if (status.includes('VISITA') || status.includes('VISITOU')) funnelCounts.visita++;
+        if (status.includes('PROPOSTA') || status.includes('APROVADO')) funnelCounts.proposta++;
+        if (status.includes('FECHADO') || status.includes('TITULAR')) funnelCounts.fechado++;
+
+        // Hierarchy Mapping
+        const circulo = (lead.circulo_hierarquico || '').toUpperCase();
+        if (circulo.includes('GENERAL')) hierarchyCounts.gen++;
+        else if (circulo.includes('SUPERIOR')) hierarchyCounts.sup++;
+        else if (circulo.includes('SUBALTERNO') || circulo.includes('INTERMEDIÁRIO')) hierarchyCounts.sub++;
+        else hierarchyCounts.others++;
+
+        // Financial Segmentation
+        const isAbove = maxVal > 1500000;
+        const target = isAbove ? financial.above15 : financial.under15;
+        target.total++;
+        if (lead.analise_documental === 'Aprovado') target.apto++;
+        else target.analise++;
+      });
+
+      const getPerc = (val: number) => totalLeads > 0 ? (val / totalLeads) * 100 : 0;
+
       setStats({
-        totalLeads: totalLeads || 0,
+        totalLeads,
         availableUnits: availableUnits || 0,
-        qualifiedLeads: qualifiedLeads || 0,
+        qualifiedLeads: qualifiedLeadsCount,
         totalVolume,
         funnel: [
-          { label: "CADASTRO", val: totalLeads || 0, color: "bg-[#1B2B48]", width: "100%" },
-          { label: "CONTATO", val: funnelCounts['Contato Inicial'] || 0, color: "bg-[#2A3F65]", width: "85%" },
-          { label: "VISITA", val: funnelCounts['Visita Realizada'] || 0, color: "bg-[#3D5A91]", width: "60%" },
-          { label: "PROPOSTA", val: funnelCounts['Proposta Enviada'] || 0, color: "bg-[#5F7DBB]", width: "40%" },
-          { label: "FECHADO", val: funnelCounts['Venda Concluída'] || 0, color: "bg-[#8BA3D5]", width: "15%" },
-        ]
+          { label: "CADASTRO", val: funnelCounts.cadastro, color: "bg-[#1B2B48]" },
+          { label: "CONTATO", val: funnelCounts.contato, color: "bg-[#2A3F65]" },
+          { label: "VISITA", val: funnelCounts.visita, color: "bg-[#3D5A91]" },
+          { label: "PROPOSTA", val: funnelCounts.proposta, color: "bg-[#5F7DBB]" },
+          { label: "FECHADO", val: funnelCounts.fechado, color: "bg-[#8BA3D5]" },
+        ],
+        hierarchy: [
+          { label: "Oficiais Gen.", color: "bg-[#1B2B48]", val: hierarchyCounts.gen, perc: getPerc(hierarchyCounts.gen) },
+          { label: "Oficiais Sup.", color: "bg-[#3D5A91]", val: hierarchyCounts.sup, perc: getPerc(hierarchyCounts.sup) },
+          { label: "Oficiais Sub.", color: "bg-[#5F7DBB]", val: hierarchyCounts.sub, perc: getPerc(hierarchyCounts.sub) },
+          { label: "Outros", color: "bg-slate-200", val: hierarchyCounts.others, perc: getPerc(hierarchyCounts.others) },
+        ],
+        financial
       });
     } catch (err) {
       console.error('Error fetching stats:', err);
@@ -96,11 +152,12 @@ export function DashboardView() {
   }
 
   const metrics = [
-    { label: "TOTAL DE INTERESSADOS", value: stats.totalLeads.toString(), change: loading ? "..." : "+0%", changeType: "info", sub: "vs. mês anterior", icon: Users },
-    { label: "UNIDADES DISPONÍVEIS", value: stats.availableUnits.toString(), change: loading ? "..." : "Ocupação: " + (100 - (stats.availableUnits / 66 * 100)).toFixed(0) + "%", changeType: "down", sub: "Status Real", icon: Building2 },
-    { label: "INTERESSADOS APTOS", value: stats.qualifiedLeads.toString(), change: loading ? "..." : "Aguardando", changeType: "info", sub: `(${(stats.totalLeads > 0 ? (stats.qualifiedLeads / stats.totalLeads * 100).toFixed(0) : 0)}% do total)`, icon: ShieldCheck },
-    { label: "VOL. EM FINANCIAMENTO", value: loading ? "..." : `R$ ${(stats.totalVolume / 1000000).toFixed(1)}M`, change: "R$ 0", changeType: "up", sub: "em negociação ativa", icon: Landmark },
+    { label: "TOTAL DE INTERESSADOS", value: stats.totalLeads.toString(), change: loading ? "..." : "+0%", changeType: "info" as const, sub: "vs. mês anterior", icon: Users },
+    { label: "UNIDADES DISPONÍVEIS", value: stats.availableUnits.toString(), change: loading ? "..." : "Ocupação: " + (100 - (stats.availableUnits / 66 * 100)).toFixed(0) + "%", changeType: "down" as const, sub: "Status Real", icon: Building2 },
+    { label: "INTERESSADOS APTOS", value: stats.qualifiedLeads.toString(), change: loading ? "..." : "Aguardando", changeType: "info" as const, sub: `(${(stats.totalLeads > 0 ? (stats.qualifiedLeads / stats.totalLeads * 100).toFixed(0) : 0)}% do total)`, icon: ShieldCheck },
+    { label: "VOL. EM NEGOCIAÇÃO", value: loading ? "..." : `R$ ${(stats.totalVolume / 1000000).toFixed(1)}M`, change: "Estimado", changeType: "up" as const, sub: "baseado na cap. financeira", icon: Landmark },
   ];
+
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -230,7 +287,7 @@ export function DashboardView() {
                 <div className="w-32 text-right pr-4 text-[10px] font-bold text-slate-400">{step.label}</div>
                 <div
                   className={cn("flex-1 h-12 rounded-l-lg flex items-center px-4 justify-between transition-all hover:brightness-110 cursor-default", step.color)}
-                  style={{ maxWidth: (stats.totalLeads > 0 ? `${(step.val / stats.totalLeads * 100)}%` : '0%'), minWidth: '60px' }}
+                  style={{ width: (stats.totalLeads > 0 ? `${(step.val / stats.totalLeads * 100)}%` : '0%'), minWidth: '40px' }}
                 >
                   <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
                     <motion.div
@@ -263,16 +320,11 @@ export function DashboardView() {
               </div>
             </div>
             <div className="mt-8 grid grid-cols-2 gap-4 w-full">
-              {[
-                { label: "Oficiais Gen.", color: "bg-[#1B2B48]", perc: "15%" },
-                { label: "Oficiais Sup.", color: "bg-[#3D5A91]", perc: "35%" },
-                { label: "Oficiais Sub.", color: "bg-[#5F7DBB]", perc: "20%" },
-                { label: "Outros", color: "bg-slate-200", perc: "30%" },
-              ].map((item) => (
+              {stats.hierarchy.map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   <div className={cn("w-2 h-2 rounded-full", item.color)}></div>
                   <span className="text-[10px] font-semibold text-slate-600 truncate">{item.label}</span>
-                  <span className="text-[10px] text-slate-400 ml-auto font-bold">{stats.totalLeads > 0 ? item.perc : '0%'}</span>
+                  <span className="text-[10px] text-slate-400 ml-auto font-bold">{item.perc.toFixed(0)}%</span>
                 </div>
               ))}
             </div>
@@ -291,24 +343,24 @@ export function DashboardView() {
           </div>
           <div className="space-y-8 py-4">
             {[
-              { label: "Até R$ 1.5M", total: `${stats.totalLeads > 0 ? Math.floor(stats.totalLeads * 0.6) : 0} Interessados`, apto: 70, analise: 30 },
-              { label: "Acima de R$ 1.5M", total: `${stats.totalLeads > 0 ? Math.ceil(stats.totalLeads * 0.4) : 0} Interessados`, apto: 40, analise: 60 },
+              { label: "Até R$ 1.5M", data: stats.financial.under15 },
+              { label: "Acima de R$ 1.5M", data: stats.financial.above15 },
             ].map((bar) => (
               <div key={bar.label}>
                 <div className="flex justify-between text-xs font-bold mb-2 uppercase tracking-tight">
                   <span className="text-slate-500">{bar.label}</span>
-                  <span className="text-[#1B2B48]">{bar.total}</span>
+                  <span className="text-[#1B2B48]">{bar.data.total} Interessados</span>
                 </div>
                 <div className="h-6 w-full bg-slate-100 flex rounded overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: stats.totalLeads > 0 ? `${bar.apto}%` : '0%' }}
+                    animate={{ width: bar.data.total > 0 ? `${(bar.data.apto / bar.data.total * 100)}%` : '0%' }}
                     transition={{ duration: 1.2 }}
                     className="bg-[#1B2B48] h-full"
                   />
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: stats.totalLeads > 0 ? `${bar.analise}%` : '0%' }}
+                    animate={{ width: bar.data.total > 0 ? `${(bar.data.analise / bar.data.total * 100)}%` : '0%' }}
                     transition={{ duration: 1.2, delay: 0.2 }}
                     className="bg-slate-300 h-full"
                   />
